@@ -3,7 +3,8 @@ import machine
 import time
 import dht
 import config
-from umqtt import MQTTClient
+from umqtt.simple import MQTTClient
+import ssl
 
 # region Initialisation
 led = machine.Pin(2, machine.Pin.OUT)
@@ -28,11 +29,11 @@ def read_dht11():
 
         temperature_topic = config.MQTT_TOPIC_PUB + "/temperature"
         print("Publishing to topic:", temperature_topic)
-        client.publish(temperature_topic, bytes(str(temperature), "utf-8"))
+        mqtt_client.publish(temperature_topic, bytes(str(temperature), "utf-8"))
 
         humidity_topic = config.MQTT_TOPIC_PUB + "/humidity"
         print("Publishing to topic:", humidity_topic)
-        client.publish(humidity_topic, bytes(str(humidity), "utf-8"))
+        mqtt_client.publish(humidity_topic, bytes(str(humidity), "utf-8"))
 
         print("Temperature: {}°C, Humidity: {}%".format(temperature, humidity))
     except OSError as e:
@@ -46,20 +47,24 @@ def sub_cb(topic, msg):
 
 
 def connect_and_subscribe():
-    client = MQTTClient(
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ssl_context.verify_mode = ssl.CERT_NONE
+
+    mqtt_client = MQTTClient(
         config.MQTT_CLIENT_ID,
         config.MQTT_SERVER,
         user=config.MQTT_USER,
         password=config.MQTT_PASS,
+        ssl=ssl_context,
     )
-    client.set_callback(sub_cb)
-    client.connect()
-    client.subscribe(config.MQTT_TOPIC_SUB)
+    mqtt_client.set_callback(sub_cb)
+    mqtt_client.connect()
+    mqtt_client.subscribe(config.MQTT_TOPIC_SUB)
     print(
         "Connected to %s MQTT broker, subscribed to %s topic"
         % (config.MQTT_SERVER, config.MQTT_TOPIC_SUB)
     )
-    return client
+    return mqtt_client
 
 
 def restart_and_reconnect():
@@ -67,17 +72,18 @@ def restart_and_reconnect():
     time.sleep(10)
     machine.reset()
 
-
 try:
-    client = connect_and_subscribe()
+    print("\nStarting MQTT Client...")
+    mqtt_client = connect_and_subscribe()
 except OSError as e:
     restart_and_reconnect()
 
 # endregion
 
 while True:
+    print("\nMain loop started...")
     try:
-        new_message = client.check_msg()
+        new_message = mqtt_client.check_msg()
         if new_message is not None:
             print("Received message:", new_message)
         blink_led()
