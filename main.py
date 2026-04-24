@@ -5,6 +5,7 @@ import dht
 import config
 from umqtt.simple import MQTTClient
 import ssl
+import ujson
 
 # region Initialisation
 led = machine.Pin(2, machine.Pin.OUT)
@@ -31,6 +32,7 @@ def read_dht11():
         publish_temperature(temperature)
         publish_humidity(humidity)
 
+        publish_last_read()
         print("Temperature: {}°C, Humidity: {}%".format(temperature, humidity))
     except OSError as e:
         print("Failed to read DHT sensor:", e)
@@ -39,16 +41,27 @@ def read_dht11():
 
 
 # region MQTT
+
 def publish_humidity(humidity):
-    humidity_topic = config.MQTT_TOPIC_PUB + "/humidity"
+    humidity_topic = config.MQTT_TOPIC_PUB + "/dht11/humidity"
     print("Publishing to topic:", humidity_topic)
     mqtt_client.publish(humidity_topic, bytes(str(humidity), "utf-8"))
 
 
 def publish_temperature(temperature):
-    temperature_topic = config.MQTT_TOPIC_PUB + "/temperature"
+    temperature_topic = config.MQTT_TOPIC_PUB + "/dht11/temperature"
     print("Publishing to topic:", temperature_topic)
     mqtt_client.publish(temperature_topic, bytes(str(temperature), "utf-8"))
+
+
+def publish_last_read():
+    last_read_topic = config.MQTT_TOPIC_PUB + "/dht11/data-timestamp"
+    print("Publishing to topic:", last_read_topic)
+    t = time.gmtime()
+    timestamp = "{:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}Z".format(
+        t[0], t[1], t[2], t[3], t[4], t[5]
+    )
+    mqtt_client.publish(last_read_topic, bytes(str(timestamp), "utf-8"))
 
 
 def process_control_message(topic, msg):
@@ -92,23 +105,39 @@ def connect_to_mqtt_broker():
     )
 
     mqtt_client.set_last_will(
-        "lwt/machines/mpy-esp32", "Machine is offline", retain=True
+        config.MQTT_TOPIC_PUB + "/status",
+        "ESP32 board abruptly disconnected",
+        retain=True,
     )
 
     mqtt_client.connect()
+    mqtt_client.publish(
+        config.MQTT_TOPIC_PUB + "/status",
+        "online",
+        retain=True,
+    )
     return mqtt_client
 
 
 def restart():
     time.sleep(10)
     print("Restarting machine...")
+    try:
+        mqtt_client.publish(
+            config.MQTT_TOPIC_PUB + "/status",
+            "offline",
+            retain=True,
+        )
+        mqtt_client.disconnect()
+    except Exception:
+        pass
     machine.reset()
 
 
 def subscribe_to_machine_control_topic():
-    print("Subscribing to machine control topic:", config.MQTT_TOPIC_SUB)
+    print("Subscribing to machine control topic:", config.MQTT_TOPIC_DEVICES_SUB)
     mqtt_client.set_callback(process_control_message)
-    mqtt_client.subscribe(config.MQTT_TOPIC_SUB)
+    mqtt_client.subscribe(config.MQTT_TOPIC_DEVICES_SUB + "/control/#")
 
 
 try:

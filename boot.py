@@ -31,3 +31,7 @@ def connect_wlan():
 
 
 connect_wlan()
+
+import ntptime
+ntptime.settime()
+print("Time synced:", time.gmtime())
