@@ -29,9 +29,16 @@ DHT11_WAIT_TIME = 15
 ## Usage
 
 1. Connect the DHT11 sensor to the ESP32.
-2. Flash the `main.py` script to the ESP32.
-3. The ESP32 will connect to the Wi-Fi and MQTT broker, and start publishing temperature and humidity data.
-4. Control the ESP32 by publishing messages to the subscribed MQTT topic.
+2. Update `config.py` with your Wi-Fi and MQTT broker credentials.
+3. Upload all required files to the ESP32:
+   ```sh
+   ampy put config.py
+   ampy put boot.py
+   ampy put main.py
+   ampy put umqtt/simple.py umqtt/simple.py
+   ```
+4. The ESP32 will connect to the Wi-Fi and MQTT broker, and start publishing temperature and humidity data.
+5. Control the ESP32 by publishing messages to the subscribed MQTT topic.
 
 ## MQTT Control Messages
 
