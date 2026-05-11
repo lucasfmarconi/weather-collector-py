@@ -5,13 +5,40 @@ import dht
 import config
 from umqtt.simple import MQTTClient
 import ssl
-import ujson
+from machine import Pin, SoftI2C
+from lcd.machine_i2c_lcd import I2cLcd
 
 # region Initialisation
+
+# region I2c LCD
+# Define the I2C LCD address and dimensions
+I2C_ADDR = 0x27
+I2C_NUM_ROWS = 2
+I2C_NUM_COLS = 16
+
+# Initialize I2C and LCD objects
+lcd = None
+try:
+    print("I2c LCD init...")
+    i2c = SoftI2C(sda=Pin(21), scl=Pin(22), freq=400000)
+
+    lcd = I2cLcd(i2c, I2C_ADDR, I2C_NUM_ROWS, I2C_NUM_COLS)
+    print("I2c LCD initializated...")
+    time.sleep(2)
+    lcd.clear()
+
+    lcd.putstr("Initializing station...")
+    time.sleep(2)
+except Exception as e:
+    print("I2c LCD init failed:", e)
+
+# endregion
+
 led = machine.Pin(2, machine.Pin.OUT)
 dht_pin = dht.DHT11(machine.Pin(17))
 LOOP_TIME = config.LOOP_TIME
 DHT11_WAIT_TIME = config.DHT11_WAIT_TIME
+TZ_OFFSET = -3 * 3600  # UTC-3 Brasília / São Paulo
 # endregion
 
 def blink_led():
@@ -19,6 +46,7 @@ def blink_led():
     led.value(1)  # Turn the LED on
     time.sleep(5)
     led.value(0)  # Turn the LED off
+
 
 # region DHT11
 def read_dht11():
@@ -33,6 +61,7 @@ def read_dht11():
         publish_humidity(humidity)
 
         publish_last_read()
+        lcd_write_sensor_data(temperature, humidity)
         print("Temperature: {}°C, Humidity: {}%".format(temperature, humidity))
     except OSError as e:
         print("Failed to read DHT sensor:", e)
@@ -41,6 +70,7 @@ def read_dht11():
 
 
 # region MQTT
+
 
 def publish_humidity(humidity):
     humidity_topic = config.MQTT_TOPIC_PUB + "/dht11/humidity"
@@ -135,21 +165,55 @@ def restart():
 
 
 def subscribe_to_machine_control_topic():
-    print("Subscribing to machine control topic:", config.MQTT_TOPIC_DEVICES_SUB)
+    msg = "Subscribing to machine control topic: " + config.MQTT_TOPIC_DEVICES_SUB
+    print(msg)
     mqtt_client.set_callback(process_control_message)
     mqtt_client.subscribe(config.MQTT_TOPIC_DEVICES_SUB + "/control/#")
 
 
+def lcd_write_sensor_data(temperature, humidity):
+    if lcd is None:
+        return
+    t = time.gmtime(time.time() + TZ_OFFSET)
+    time_str = "{:02d}:{:02d}:{:02d}".format(t[3], t[4], t[5])
+    line1 = "T:{}C | H:{}%".format(temperature, humidity)
+    line2 = "Last: " + time_str
+    lcd.clear()
+    lcd.putstr(line1)
+    lcd.move_to(0, 1)
+    lcd.putstr(line2)
+    lcd.blink_cursor_on()
+
+
+def lcd_clear_and_write(msg):
+    if lcd is None:
+        return
+    lcd.blink_cursor_on()
+    lcd.clear()
+    lcd.putstr(msg)
+
+
+def lcd_write_fullpage(line1, line2):
+    if lcd is None:
+        return
+    lcd.clear()
+    lcd.putstr(line1)
+    lcd.move_to(0, 1)
+    lcd.putstr(line2)
+    lcd.blink_cursor_on()
+
+
 try:
     print("\nStarting MQTT Client...")
+    lcd_clear_and_write("Connecting to MQTT...")
     mqtt_client = connect_to_mqtt_broker()
+    lcd_write_fullpage("MQTT Connected!", "Station init...")
     subscribe_to_machine_control_topic()
 except OSError as e:
     print("Failed to connect to MQTT broker")
     restart()
 
 # endregion
-
 while True:
     print("\nMain loop started...")
     try:
