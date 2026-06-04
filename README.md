@@ -59,6 +59,35 @@ To change the loop time to 20 seconds, publish the following message to the cont
 }
 ```
 
+## Wiring / Pinout
+
+### DHT11 Sensor → ESP32
+
+| DHT11 Pin | ESP32 Pin  | Notes          |
+|-----------|------------|----------------|
+| VCC       | 3.3V       | Power          |
+| GND       | GND        | Ground         |
+| DATA      | GPIO 17    | Digital signal |
+
+### I2C LCD (16×2) → ESP32
+
+| LCD Pin | ESP32 Pin | Notes                          |
+|---------|-----------|--------------------------------|
+| VCC     | 5V        | Power                          |
+| GND     | GND       | Ground                         |
+| SDA     | GPIO 21   | I2C data (default SoftI2C SDA) |
+| SCL     | GPIO 22   | I2C clock (default SoftI2C SCL)|
+
+> **LCD I2C address:** `0x27`
+
+### Onboard LED
+
+| Function    | ESP32 Pin |
+|-------------|-----------|
+| Status LED  | GPIO 2    |
+
+---
+
 ## Extra
 ### Working with ESP32 board and MicroPython
 * Working with a Serial board connected
